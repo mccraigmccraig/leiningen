@@ -1,16 +1,29 @@
 #!/bin/bash
 
+PRG=$0
+while [ -h "$PRG" ] ; do
+  ls=`ls -ld "$PRG"`
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '.*/.*' > /dev/null; then
+  PRG="$link"
+  else
+  PRG="`dirname $PRG`/$link"
+  fi
+done
+LEIN_BIN=`dirname "$PRG"`
+LEIN_HOME=`dirname "$LEIN_BIN"`
+
 # TODO: this gives us a trailing colon
 VERSION=0.5.0
-LIBS="$(find -H lib/ -mindepth 2> /dev/null 1 -maxdepth 1 -print0 | tr \\0 \:)"
-CLASSPATH="src/:classes/:$LIBS"
+LIBS="$(find -H $LEIN_HOME/lib/ -mindepth 2> /dev/null 1 -maxdepth 1 -print0 | tr \\0 \:)"
+CLASSPATH="$LEIN_HOME/src/:$LEIN_HOME/classes/:$LIBS"
 LEIN_JAR=$HOME/.m2/repository/leiningen/leiningen/$VERSION/leiningen-$VERSION.jar
 
 # this needs to exist before the JVM is launched apparently
 mkdir -p classes
 
 # If we are not running from a checkout
-if [ ! -r "bin/lein" ]; then
+if [ ! -r "$LEIN_HOME/bin/lein" ]; then
     if [ ! -r "$LEIN_JAR" -a "$1" != "self-install" ]; then
         echo "Leiningen is not installed. Please run \"lein self-install\"."
         exit 1
@@ -20,7 +33,7 @@ if [ ! -r "bin/lein" ]; then
 fi
 
 if [ "$1" = "test" ]; then
-    CLASSPATH=test/:$CLASSPATH
+    CLASSPATH=$LEIN_HOME/test/:$CLASSPATH
 fi
 
 if [ $DEBUG ]; then
@@ -29,7 +42,7 @@ fi
 
 # Deps need to run before the JVM launches for tasks that need them
 if [ "$1" = "compile" -o "$1" = "jar" -o "$1" = "uberjar" ]; then
-    if [ ! "$(ls -A lib/*jar 2> /dev/null)" ]; then
+    if [ ! "$(ls -A $LEIN_HOME/lib/*jar 2> /dev/null)" ]; then
         $0 deps skip-dev
     fi
 fi
