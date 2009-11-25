@@ -1,6 +1,5 @@
 (ns leiningen.core
-  (:use [clojure.contrib.with-ns])
-  (:gen-class))
+  (:use [clojure.contrib.with-ns]))
 
 (def project nil)
 
@@ -27,14 +26,29 @@
 
 (def aliases {"--help" "help" "-h" "help" "-?" "help"})
 
-(defn -main [command & args]
-  (let [command (or (aliases command) command)
-        action-ns (symbol (str "leiningen." command))
-        _ (require action-ns)
-        action (ns-resolve action-ns (symbol command))
-        project (read-project)]
+(def no-project-needed #{"new" "help"})
+
+(defn command-not-found [command project & _]
+  (println command "is not a command. Use \"help\" to list all commands.")
+  (System/exit 1))
+
+(defn resolve-command [command]
+  (let [command-ns (symbol (str "leiningen." command))
+        command (symbol command)]
+    (try
+     (require command-ns)
+     (ns-resolve command-ns command)
+     (catch java.io.FileNotFoundException e
+       (partial command-not-found command)))))
+
+(defn main [args-string]
+  (let [[command & args] (.split args-string " ")
+        command (or (aliases command) command)
+        project (if (no-project-needed command)
+                  (first args)
+                  (read-project))]
     (binding [*compile-path* (or (:compile-path project)
                                  (str (:root project) "/classes/"))]
-      (apply action project args)
-      ;; In case tests or some other task started any:
-      (shutdown-agents))))
+      (apply (resolve-command command) project args))
+    ;; In case tests or some other task started any:
+    (shutdown-agents)))
